@@ -7,6 +7,8 @@
 #include <BLEAdvertisedDevice.h>
 #include <nvs.h>
 #include <nvs_flash.h>
+#include "driver/gpio.h"
+#include "driver/ledc.h"
 
 String NVS_Read_String(const char* name, const char* key);
 int NVS_Write_String(const char* name, const char* key, const char* stringVal);
@@ -232,6 +234,10 @@ void buscar()
 
 void setup() 
 {
+
+  gpio_pad_select_gpio(V_OUT);
+  gpio_pad_select_gpio(LED_BLUE);
+
   Serial.begin(SERIAL_BAUDRATE);
   pinMode(13,OUTPUT);
   pinMode(2,OUTPUT);
