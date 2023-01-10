@@ -43,13 +43,20 @@ char flag = 'I';
 struct acc_frame 
 {
   String index;
-  float Axis_x;
-  float Axis_y;
-  float Axis_z;
-  float Angle_x;
-  float Angle_y;
-  float Angle_z;
-}frame = {"BACC",0,0,0,0,0,0};
+  float ED2_Axis_x;
+  float ED2_Axis_y;
+  float ED2_Axis_z;
+  float ED2_Angle_x;
+  float ED2_Angle_y;
+  float ED2_Angle_z;
+  float ED3_Axis_x;
+  float ED3_Axis_y;
+  float ED3_Axis_z;
+  float ED3_Angle_x;
+  float ED3_Angle_y;
+  float ED3_Angle_z;
+
+}frame = {"BACC",0,0,0,0,0,0,0,0,0,0,0,0};
 
 
 //String addressRef = "ac:23:3f:aa:82:29";
@@ -83,17 +90,27 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks
       
       if(strcmp(Address01.c_str(), ED2.c_str()) == 0)
       {
-        frame.Axis_x = decodePayload(payloadStr,'x');
-        frame.Axis_y = decodePayload(payloadStr,'y');
-        frame.Axis_z = decodePayload(payloadStr,'z');
-
-        frame.Angle_x = axisToDegress(frame.Axis_x,frame.Axis_y,frame.Axis_z,'x');
-        frame.Angle_y = axisToDegress(frame.Axis_x,frame.Axis_y,frame.Axis_z,'y');
-        frame.Angle_z = axisToDegress(frame.Axis_x,frame.Axis_y,frame.Axis_z,'z');
-        mountPackage();
-        processingData();
-
+        frame.ED2_Axis_x = decodePayload(payloadStr,'x');
+        frame.ED2_Axis_y = decodePayload(payloadStr,'y');
+        frame.ED2_Axis_z = decodePayload(payloadStr,'z');
+        frame.ED2_Angle_x = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'x');
+        frame.ED2_Angle_y = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'y');
+        frame.ED2_Angle_z = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'z');
       }
+
+      if(strcmp(Address01.c_str(), ED3.c_str()) == 0)
+      {
+        frame.ED3_Axis_x = decodePayload(payloadStr,'x');
+        frame.ED3_Axis_y = decodePayload(payloadStr,'y');
+        frame.ED3_Axis_z = decodePayload(payloadStr,'z');
+        frame.ED3_Angle_x = axisToDegress(frame.ED3_Axis_x,frame.ED3_Axis_y,frame.ED3_Axis_z,'x');
+        frame.ED3_Angle_y = axisToDegress(frame.ED3_Axis_x,frame.ED3_Axis_y,frame.ED3_Axis_z,'y');
+        frame.ED3_Angle_z = axisToDegress(frame.ED3_Axis_x,frame.ED3_Axis_y,frame.ED3_Axis_z,'z');
+      }
+
+      mountPackage();
+      processingData();
+
     }
 };
 
@@ -111,6 +128,12 @@ void Task_stateGPIO(void * params)
         Serial.println("Bag armado");
         break;
 
+      case 'B':
+        gpio_set_level(PIN_ED3, 1);
+        gpio_set_level(LED_BLUE,0);
+        Serial.println("Basculando");
+      break;
+
       case 'D':
         gpio_set_level(PIN_ED2,1);
         gpio_set_level(LED_BLUE,0);
@@ -119,8 +142,10 @@ void Task_stateGPIO(void * params)
 
       case 'N':
         gpio_set_level(PIN_ED2,1);
+        gpio_set_level(PIN_ED3,0);
         gpio_set_level(LED_BLUE,0);
         break;
+        
     }
 
     vTaskDelay(2000 / portTICK_RATE_MS);
@@ -174,8 +199,8 @@ void mountPackage()
 {
     String package;
     acc_frame frame;
-    //package = (package + frame.Axis_x + "," + frame.Axis_y + "," + frame.Axis_z + "," + frame.Angle_x + "," + frame.Angle_y + "," + frame.Angle_z);
-    //Serial.printf("Package: %s \r\n",package.c_str()); 
+    package = (package + frame.ED2_Axis_x + "," + frame.ED2_Axis_y + "," + frame.ED2_Axis_z + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z) + "," + frame.ED3_Axis_x + "," + frame.ED3_Axis_y + "," + frame.ED3_Axis_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z;
+    Serial.printf("Package: %s \r\n",package.c_str()); 
     long resposta = xQueueSend(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS);
     
     if(resposta == true)
@@ -194,7 +219,7 @@ void processingData()
   if(xQueueReceive(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS))
   {
 
-    if ( (frame.Angle_x >= 15 && frame.Angle_x <= 60) && (frame.Angle_y >= 40 && frame.Angle_y <= 70) )
+    if ( (frame.ED2_Angle_x >= 15 && frame.ED2_Angle_x <= 60) && (frame.ED2_Angle_y >= 40 && frame.ED2_Angle_y <= 70) )
     {
       //Serial.println("Bag armado");
       if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
@@ -204,7 +229,7 @@ void processingData()
       }
     }
 
-    else if ( (frame.Angle_x >= 70 && frame.Angle_x <= 90) && (frame.Angle_y < 3 ) )
+    else if ( (frame.ED2_Angle_x >= 70 && frame.ED2_Angle_x <= 90) && (frame.ED2_Angle_y < 3 ) )
     {
       //Serial.println("Bag desarmado");
       if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
@@ -213,6 +238,18 @@ void processingData()
         xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
       }
     }
+    
+    else if ((frame.ED3_Angle_y >= 70))
+    {
+      if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
+      {
+        estado = 'B';
+        xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
+      }
+
+    }
+
+
     else
     {
       if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
