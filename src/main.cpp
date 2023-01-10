@@ -28,9 +28,10 @@ void registerBeacon();
 #define SERIAL_BAUDRATE 9600
 #define TIME_SEARCH_BLE 1
 #define TIME_REGISTER 10000
-#define PIN_ED2 13
-#define PIN_ED3 14
-#define LED_BLUE 2
+
+#define PIN_ED2 GPIO_NUM_13
+#define PIN_ED3 GPIO_NUM_14
+#define LED_BLUE GPIO_NUM_2
 
 
 xQueueHandle QueuePackages;
@@ -105,20 +106,20 @@ void Task_stateGPIO(void * params)
     {
 
       case 'A':
-        digitalWrite(PIN_ED2,LOW);
-        digitalWrite(LED_BLUE,HIGH);
+        gpio_set_level(PIN_ED2, 0);
+        gpio_set_level(LED_BLUE,1);
         Serial.println("Bag armado");
         break;
 
       case 'D':
-        digitalWrite(PIN_ED2,HIGH);
-        digitalWrite(LED_BLUE,LOW);
+        gpio_set_level(PIN_ED2,1);
+        gpio_set_level(LED_BLUE,0);
         Serial.println("Bag Desarmado");
         break;
 
       case 'N':
-        digitalWrite(PIN_ED2,HIGH);
-        digitalWrite(LED_BLUE,LOW);
+        gpio_set_level(PIN_ED2,1);
+        gpio_set_level(LED_BLUE,0);
         break;
     }
 
@@ -232,15 +233,31 @@ void buscar()
 }
 
 
+
 void setup() 
 {
 
-  gpio_pad_select_gpio(V_OUT);
+
+  gpio_pad_select_gpio(PIN_ED2);
+  gpio_pad_select_gpio(PIN_ED3);
   gpio_pad_select_gpio(LED_BLUE);
 
+  gpio_set_direction(PIN_ED2, GPIO_MODE_OUTPUT);
+  gpio_set_direction(PIN_ED3, GPIO_MODE_OUTPUT);
+  gpio_set_direction(LED_BLUE, GPIO_MODE_OUTPUT);
+
+  gpio_pullup_dis(LED_BLUE);
+  gpio_pulldown_en(LED_BLUE);
+
+  gpio_pullup_dis(PIN_ED2);
+  gpio_pulldown_en(PIN_ED2);
+
+  gpio_pullup_dis(PIN_ED2);
+  gpio_pulldown_en(PIN_ED3);
+
+
   Serial.begin(SERIAL_BAUDRATE);
-  pinMode(13,OUTPUT);
-  pinMode(2,OUTPUT);
+
   Serial.println("");
   Serial.println("Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'.");
   state = xSemaphoreCreateMutex();
