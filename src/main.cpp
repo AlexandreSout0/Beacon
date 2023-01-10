@@ -7,6 +7,8 @@
 #include <BLEAdvertisedDevice.h>
 #include <nvs.h>
 #include <nvs_flash.h>
+#include "driver/uart.h"
+#include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
@@ -14,6 +16,8 @@ String NVS_Read_String(const char* name, const char* key);
 int NVS_Write_String(const char* name, const char* key, const char* stringVal);
 float decodePayload(String Payload, char operation);
 float axisToDegress(float Axis_x, float Axis_y,float Axis_z, char operatation);
+void uart_init(int baudRate, int tx_io_num, int rx_io_num, uart_port_t uart_num);
+char* uartData();
 void mountPackage();
 void processingData();
 void NVS_Erase();
@@ -25,7 +29,7 @@ void registerBeacon();
 #define SEMAPHORE_WAIT 2000
 #define QUEUE_WAIT 3000
 #define QUEUE_LENGHT 12
-#define SERIAL_BAUDRATE 9600
+#define SERIAL_BAUDRATE 115200
 #define TIME_SEARCH_BLE 1
 #define TIME_REGISTER 10000
 
@@ -96,6 +100,8 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks
         frame.ED2_Angle_x = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'x');
         frame.ED2_Angle_y = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'y');
         frame.ED2_Angle_z = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'z');
+        mountPackage();
+        processingData();
       }
 
       if(strcmp(Address01.c_str(), ED3.c_str()) == 0)
@@ -106,13 +112,54 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks
         frame.ED3_Angle_x = axisToDegress(frame.ED3_Axis_x,frame.ED3_Axis_y,frame.ED3_Axis_z,'x');
         frame.ED3_Angle_y = axisToDegress(frame.ED3_Axis_x,frame.ED3_Axis_y,frame.ED3_Axis_z,'y');
         frame.ED3_Angle_z = axisToDegress(frame.ED3_Axis_x,frame.ED3_Axis_y,frame.ED3_Axis_z,'z');
+        mountPackage();
+        processingData();
       }
-
-      mountPackage();
-      processingData();
 
     }
 };
+
+
+void uart_init(int baudRate, int tx_io_num, int rx_io_num, uart_port_t uart_num)
+{
+    #define BUF_SIZE 1024
+
+    #if CONFIG_UART_ISR_IN_IRAM
+      intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+    #endif
+
+    uart_config_t uart_config = 
+    {
+      .baud_rate = baudRate,
+      .data_bits = UART_DATA_8_BITS,
+      .parity    = UART_PARITY_DISABLE,
+      .stop_bits = UART_STOP_BITS_1,
+      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+    
+   /* Configure parameters of an UART driver,
+   * communication pins and install the driver */  
+   int intr_alloc_flags = 0;
+   uart_driver_install(uart_num, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags);
+   uart_param_config(uart_num, &uart_config);
+   uart_set_pin(uart_num, tx_io_num, rx_io_num, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
+}
+
+char* uartData()
+{
+    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
+    int len = uart_read_bytes(UART_NUM_0, data, BUF_SIZE, 20 / portTICK_RATE_MS);
+    if (len > 0) {
+      data[len] = 0;
+      uart_write_bytes(UART_NUM_0, (const char *) data, len);
+      char* output = (char *) data;
+      free(data);
+      return output;
+    }
+
+    return nullptr;
+}
 
 
 void Task_stateGPIO(void * params)
@@ -125,19 +172,19 @@ void Task_stateGPIO(void * params)
       case 'A':
         gpio_set_level(PIN_ED2, 0);
         gpio_set_level(LED_BLUE,1);
-        Serial.println("Bag armado");
+        uart_write_bytes(UART_NUM_0, (const char *) "Bag Armado \n", strlen("Bag Armado \n"));
         break;
 
       case 'B':
         gpio_set_level(PIN_ED3, 1);
         gpio_set_level(LED_BLUE,0);
-        Serial.println("Basculando");
+        uart_write_bytes(UART_NUM_0, (const char *) "Basculando \n", strlen("Basculando \n"));
       break;
 
       case 'D':
         gpio_set_level(PIN_ED2,1);
         gpio_set_level(LED_BLUE,0);
-        Serial.println("Bag Desarmado");
+        uart_write_bytes(UART_NUM_0, (const char *) "Bag Desarmado \n", strlen("Bag Desarmado \n"));
         break;
 
       case 'N':
@@ -159,24 +206,29 @@ void Task_registerBeacon(void * params)
     {
       if(millis() < TIME_REGISTER)
       {
-        if (Serial.available() > 0) 
-        {
-          addrMac = Serial.readString();
-          Serial.println(addrMac);
-          flag = 'G';
-        }
+        // if (Serial.available() > 0) 
+        // {
+        //   //addrMac = Serial.readString();
+        //   //Serial.println(addrMac);
+             //flag = 'G';
+
+        // }
+         flag = 'G';
       }
 
       if (flag == 'I' && (millis() > TIME_REGISTER))
       {
         ED2 = NVS_Read_String("memoria", "ED2");
         ED3 = NVS_Read_String("memoria", "ED3");
-        Serial.println(" ");
-        Serial.printf("iBeacon ED2 -> ");
-        Serial.println(ED2);
-        Serial.printf("iBeacon ED3 -> ");
-        Serial.println(ED3);
+        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED2 -> \n", strlen("iBeacon ED2 -> \n"));
+        uart_write_bytes(UART_NUM_0, (const char *) ED2.c_str(), strlen(ED2.c_str()));
+        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED3 -> \n", strlen("iBeacon ED3 -> \n"));
+        uart_write_bytes(UART_NUM_0, (const char *) ED3.c_str(), strlen(ED3.c_str()));
+        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+
         flag = 'N';
+
       }
       
       if (flag == 'G')
@@ -200,7 +252,10 @@ void mountPackage()
     String package;
     acc_frame frame;
     package = (package + frame.ED2_Axis_x + "," + frame.ED2_Axis_y + "," + frame.ED2_Axis_z + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z) + "," + frame.ED3_Axis_x + "," + frame.ED3_Axis_y + "," + frame.ED3_Axis_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z;
-    Serial.printf("Package: %s \r\n",package.c_str()); 
+    uart_write_bytes(UART_NUM_0, (const char *) "Package: ", strlen("Package: "));
+    uart_write_bytes(UART_NUM_0, (const char *) package.c_str(), strlen(package.c_str()));
+    uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+
     long resposta = xQueueSend(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS);
     
     if(resposta == true)
@@ -209,12 +264,13 @@ void mountPackage()
     }
     else
     {
-      Serial.printf("Não adicionado a fila: %s \r\n",package.c_str());
+      uart_write_bytes(UART_NUM_0, (const char *) "Não adicionado a fila:  ", strlen("Não adicionado a fila:"));
+      //Serial.printf("Não adicionado a fila: %s \r\n",package.c_str());
     }
     
 }
 
-void processingData()
+void processingData() 
 {
   if(xQueueReceive(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS))
   {
@@ -246,9 +302,7 @@ void processingData()
         estado = 'B';
         xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
       }
-
     }
-
 
     else
     {
@@ -292,11 +346,13 @@ void setup()
   gpio_pullup_dis(PIN_ED2);
   gpio_pulldown_en(PIN_ED3);
 
+  //Serial.begin(SERIAL_BAUDRATE);
 
-  Serial.begin(SERIAL_BAUDRATE);
+  uart_init(SERIAL_BAUDRATE, GPIO_NUM_1, GPIO_NUM_3, UART_NUM_0);
 
-  Serial.println("");
-  Serial.println("Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'.");
+  uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+  uart_write_bytes(UART_NUM_0, (const char *) "Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'. \n", strlen("Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'. \n"));
+
   state = xSemaphoreCreateMutex();
   QueuePackages = xQueueCreate(QUEUE_LENGHT,sizeof(float));
   xTaskCreate(&Task_stateGPIO, "estado da porta", 2048, NULL, 1, NULL);
@@ -310,6 +366,7 @@ void setup()
   pBLEScan->setWindow(449); // less or equal setInterval value
 
 }
+
 
 
 float decodePayload(String Payload, char operation)
@@ -366,7 +423,6 @@ float decodePayload(String Payload, char operation)
 
 }
 
-
 float axisToDegress(float Axis_x, float Axis_y,float Axis_z, char operatation)
 {
   float angle = 0;
@@ -401,7 +457,9 @@ void NVS_Erase()
     esp_err_t retorno = nvs_flash_erase();
     if ((retorno =! ESP_OK))
     {
-      Serial.printf("Não apagou nada : (%s) \n\r", esp_err_to_name(retorno));
+      uart_write_bytes(UART_NUM_0, (const char *) "Não Apagou: ", strlen("Não Apagou: "));
+      uart_write_bytes(UART_NUM_0, (const char *) esp_err_to_name(retorno), strlen(esp_err_to_name(retorno)));
+      uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
     }
 }
 
@@ -415,7 +473,7 @@ int NVS_Write_String(const char* name, const char* key, const char* stringVal)
     retVal = nvs_open(name, NVS_READWRITE, &particao_handle);
     if(retVal != ESP_OK)
     {
-        Serial.println("Não foi possivel acessar a partição");
+        uart_write_bytes(UART_NUM_0, (const char *) "Não foi possivel acessar a partição \n", strlen("Não foi possivel acessar a partição \n"));
         aux = 0;
     }
     else
@@ -425,14 +483,14 @@ int NVS_Write_String(const char* name, const char* key, const char* stringVal)
 
         if(retVal != ESP_OK)
         {
-            Serial.println("Não foi possivel  gravar o dado enviado");
+            uart_write_bytes(UART_NUM_0, (const char *) "Não foi possivel  gravar o dado enviado\n", strlen("Não foi possivel  gravar o dado enviado\n"));
             aux = 0;
         }
  
         retVal = nvs_commit(particao_handle);
         if(retVal != ESP_OK)
         {
-            Serial.println("Não foi possivel  gravar o dado enviado na partição ");
+            uart_write_bytes(UART_NUM_0, (const char *) "Não foi possivel  gravar o dado enviado na partição\n", strlen("Não foi possivel  gravar o dado enviado na partição\n"));
             aux = 0;
         }
         else
@@ -458,7 +516,7 @@ String NVS_Read_String(const char* name, const char* key)
 
     if (res_nvs == ESP_ERR_NVS_NOT_FOUND)
     {
-      Serial.printf("NVS, Namespace: armazenamento, não encontrado =/");
+      uart_write_bytes(UART_NUM_0, (const char *) "NVS, Namespace: armazenamento, não encontrado", strlen("NVS, Namespace: armazenamento, não encontrado"));
     }
     else
     {
@@ -473,11 +531,16 @@ String NVS_Read_String(const char* name, const char* key)
         break;
 
       case ESP_ERR_NOT_FOUND:
-        Serial.printf("NVS: Valor não encontrado");
+        uart_write_bytes(UART_NUM_0, (const char *) "NVS: Valor não encontrado", strlen("NVS: Valor não encontrado"));
+
         break;
 
       default:
-        Serial.printf("NVS: Erro ao acessar o NVS (%s)", esp_err_to_name(res));
+        uart_write_bytes(UART_NUM_0, (const char *) "NVS: Erro ao acessar o NVS: ", strlen("NVS: Erro ao acessar o NVS: "));
+        uart_write_bytes(UART_NUM_0, (const char *) esp_err_to_name(res), strlen(esp_err_to_name(res)));
+        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+
+
         break;
       }
       nvs_close(particao_handle);
