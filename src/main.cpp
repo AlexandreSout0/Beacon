@@ -7,6 +7,7 @@
 #include <BLEAdvertisedDevice.h>
 #include <nvs.h>
 #include <nvs_flash.h>
+#include "esp_timer.h"
 #include "driver/uart.h"
 #include "sdkconfig.h"
 #include "driver/gpio.h"
@@ -558,8 +559,16 @@ String NVS_Read_String(const char* name, const char* key)
 //ac:23:3f:aa:82:29
 void loop() 
 {
+  //int64_t t1 = esp_timer_get_time();
+  // 1s <-> 1000000 us
+  if(esp_timer_get_time() < 1000000)
+  {
+    
+    //uart_write_bytes(UART_NUM_0, (const char *) "sim\r\n", strlen("sim\r\n"));
 
-  buscar();
+  }
+
+  //buscar();
 
 }
 
