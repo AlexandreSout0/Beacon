@@ -68,7 +68,6 @@ String ED2;
 String ED3;
 String addrMac;
 
-
 BLEScan* pBLEScan;
 
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks
@@ -152,7 +151,7 @@ char* uartData()
     int len = uart_read_bytes(UART_NUM_0, data, BUF_SIZE, 20 / portTICK_RATE_MS);
     if (len > 0) {
       data[len] = 0;
-      uart_write_bytes(UART_NUM_0, (const char *) data, len);
+      //uart_write_bytes(UART_NUM_0, (const char *) data, len);
       char* output = (char *) data;
       free(data);
       return output;
@@ -201,19 +200,24 @@ void Task_stateGPIO(void * params)
 
 
 void Task_registerBeacon(void * params)
-  {
+{
     while(1)
     {
       if(millis() < TIME_REGISTER)
       {
-        // if (Serial.available() > 0) 
-        // {
-        //   //addrMac = Serial.readString();
-        //   //Serial.println(addrMac);
-             //flag = 'G';
+        uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
+        int len = uart_read_bytes(UART_NUM_0, data, BUF_SIZE, 1000 / portTICK_RATE_MS);
+        if (len > 0) 
+        {
+          data[len] = 0;
+          //uart_write_bytes(UART_NUM_0, (const char *) data, len);
+          //char* output = (char *) data;          
+          addrMac = (char *) data;
 
-        // }
-         flag = 'G';
+          free(data);
+          flag = 'G';
+        }
+
       }
 
       if (flag == 'I' && (millis() > TIME_REGISTER))
@@ -221,9 +225,10 @@ void Task_registerBeacon(void * params)
         ED2 = NVS_Read_String("memoria", "ED2");
         ED3 = NVS_Read_String("memoria", "ED3");
         uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
-        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED2 -> \n", strlen("iBeacon ED2 -> \n"));
+        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED2 -> ", strlen("iBeacon ED2 -> "));
         uart_write_bytes(UART_NUM_0, (const char *) ED2.c_str(), strlen(ED2.c_str()));
-        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED3 -> \n", strlen("iBeacon ED3 -> \n"));
+        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED3 -> ", strlen("iBeacon ED3 -> "));
         uart_write_bytes(UART_NUM_0, (const char *) ED3.c_str(), strlen(ED3.c_str()));
         uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
 
@@ -244,7 +249,7 @@ void Task_registerBeacon(void * params)
 
       vTaskDelay(1000 / portTICK_RATE_MS);
     }
-  }
+}
 
 
 void mountPackage()
