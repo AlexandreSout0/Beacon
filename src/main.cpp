@@ -27,12 +27,15 @@ void Task_registerBeacon(void * params);
 void registerBeacon();
 
 
+//ac:23:3f:ad:dd:d6@ac:23:3f:ad:dd:d7
+
 #define SEMAPHORE_WAIT 2000
 #define QUEUE_WAIT 3000
 #define QUEUE_LENGHT 12
 #define SERIAL_BAUDRATE 115200
 #define TIME_SEARCH_BLE 1
-#define TIME_REGISTER 10000
+#define UART0 UART_NUM_0
+#define TIME_REGISTER 3000000  // esp_timer_get_time() 1s <-> 1000000 us
 
 #define PIN_ED2 GPIO_NUM_13
 #define PIN_ED3 GPIO_NUM_14
@@ -94,6 +97,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks
       
       if(strcmp(Address01.c_str(), ED2.c_str()) == 0)
       {
+       //uart_write_bytes(UART0, payloadStr.c_str(),strlen(payloadStr.c_str()));
         frame.ED2_Axis_x = decodePayload(payloadStr,'x');
         frame.ED2_Axis_y = decodePayload(payloadStr,'y');
         frame.ED2_Axis_z = decodePayload(payloadStr,'z');
@@ -152,7 +156,7 @@ char* uartData()
     int len = uart_read_bytes(UART_NUM_0, data, BUF_SIZE, 20 / portTICK_RATE_MS);
     if (len > 0) {
       data[len] = 0;
-      //uart_write_bytes(UART_NUM_0, (const char *) data, len);
+      //uart_write_bytes(UART0, (const char *) data, len);
       char* output = (char *) data;
       free(data);
       return output;
@@ -172,19 +176,19 @@ void Task_stateGPIO(void * params)
       case 'A':
         gpio_set_level(PIN_ED2, 0);
         gpio_set_level(LED_BLUE,1);
-        uart_write_bytes(UART_NUM_0, (const char *) "Bag Armado \n", strlen("Bag Armado \n"));
+        uart_write_bytes(UART0, (const char *) "Bag Armado \n", strlen("Bag Armado \n"));
         break;
 
       case 'B':
         gpio_set_level(PIN_ED3, 1);
         gpio_set_level(LED_BLUE,0);
-        uart_write_bytes(UART_NUM_0, (const char *) "Basculando \n", strlen("Basculando \n"));
+        uart_write_bytes(UART0, (const char *) "Basculando \n", strlen("Basculando \n"));
       break;
 
       case 'D':
         gpio_set_level(PIN_ED2,1);
         gpio_set_level(LED_BLUE,0);
-        uart_write_bytes(UART_NUM_0, (const char *) "Bag Desarmado \n", strlen("Bag Desarmado \n"));
+        uart_write_bytes(UART0, (const char *) "Bag Desarmado \n", strlen("Bag Desarmado \n"));
         break;
 
       case 'N':
@@ -204,10 +208,11 @@ void Task_registerBeacon(void * params)
 {
     while(1)
     {
-      if(millis() < TIME_REGISTER)
+
+      if(esp_timer_get_time() < TIME_REGISTER)
       {
         uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
-        int len = uart_read_bytes(UART_NUM_0, data, BUF_SIZE, 1000 / portTICK_RATE_MS);
+        int len = uart_read_bytes(UART0, data, BUF_SIZE, 1000 / portTICK_RATE_MS);
         if (len > 0) 
         {
           data[len] = 0;
@@ -221,17 +226,17 @@ void Task_registerBeacon(void * params)
 
       }
 
-      if (flag == 'I' && (millis() > TIME_REGISTER))
+      if (flag == 'I' && (esp_timer_get_time() > TIME_REGISTER))
       {
         ED2 = NVS_Read_String("memoria", "ED2");
         ED3 = NVS_Read_String("memoria", "ED3");
-        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
-        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED2 -> ", strlen("iBeacon ED2 -> "));
-        uart_write_bytes(UART_NUM_0, (const char *) ED2.c_str(), strlen(ED2.c_str()));
-        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
-        uart_write_bytes(UART_NUM_0, (const char *) "iBeacon ED3 -> ", strlen("iBeacon ED3 -> "));
-        uart_write_bytes(UART_NUM_0, (const char *) ED3.c_str(), strlen(ED3.c_str()));
-        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+        uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
+        uart_write_bytes(UART0, (const char *) "iBeacon ED2 -> ", strlen("iBeacon ED2 -> "));
+        uart_write_bytes(UART0, (const char *) ED2.c_str(), strlen(ED2.c_str()));
+        uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
+        uart_write_bytes(UART0, (const char *) "iBeacon ED3 -> ", strlen("iBeacon ED3 -> "));
+        uart_write_bytes(UART0, (const char *) ED3.c_str(), strlen(ED3.c_str()));
+        uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
 
         flag = 'N';
 
@@ -255,22 +260,21 @@ void Task_registerBeacon(void * params)
 
 void mountPackage()
 {
-    String package;
-    acc_frame frame;
-    package = (package + frame.ED2_Axis_x + "," + frame.ED2_Axis_y + "," + frame.ED2_Axis_z + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z) + "," + frame.ED3_Axis_x + "," + frame.ED3_Axis_y + "," + frame.ED3_Axis_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z;
-    uart_write_bytes(UART_NUM_0, (const char *) "Package: ", strlen("Package: "));
-    uart_write_bytes(UART_NUM_0, (const char *) package.c_str(), strlen(package.c_str()));
-    uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+    String package = "BACC";
+    package = (package + "," + frame.ED2_Axis_x + "," + frame.ED2_Axis_y + "," + frame.ED2_Axis_z + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z + "," + frame.ED3_Axis_x + "," + frame.ED3_Axis_y + "," + frame.ED3_Axis_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z);
+      // uart_write_bytes(UART0, (const char *) "Package: ", strlen("Package: "));
+      // uart_write_bytes(UART0, (const char *) package.c_str(), strlen(package.c_str()));
+      // uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
 
     long resposta = xQueueSend(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS);
     
     if(resposta == true)
     {
-     //Serial.println("add"); 
+     //uart_write_bytes(UART0, (const char *) "adicionado a fila", strlen("adicionado a fila"));
     }
     else
     {
-      uart_write_bytes(UART_NUM_0, (const char *) "Não adicionado a fila:  ", strlen("Não adicionado a fila:"));
+      uart_write_bytes(UART0, (const char *) "Não adicionado a fila:  ", strlen("Não adicionado a fila:"));
       //Serial.printf("Não adicionado a fila: %s \r\n",package.c_str());
     }
     
@@ -352,12 +356,10 @@ void setup()
   gpio_pullup_dis(PIN_ED2);
   gpio_pulldown_en(PIN_ED3);
 
-  //Serial.begin(SERIAL_BAUDRATE);
+  uart_init(SERIAL_BAUDRATE, GPIO_NUM_1, GPIO_NUM_3, UART0);
 
-  uart_init(SERIAL_BAUDRATE, GPIO_NUM_1, GPIO_NUM_3, UART_NUM_0);
-
-  uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
-  uart_write_bytes(UART_NUM_0, (const char *) "Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'. \n", strlen("Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'. \n"));
+  uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
+  uart_write_bytes(UART0, (const char *) "Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'. \n", strlen("Digite o endereço MAC dos iBeacons referentes a ED2 e ED3 sepados por '@'. \n"));
 
   state = xSemaphoreCreateMutex();
   QueuePackages = xQueueCreate(QUEUE_LENGHT,sizeof(float));
@@ -372,8 +374,6 @@ void setup()
   pBLEScan->setWindow(449); // less or equal setInterval value
 
 }
-
-
 
 float decodePayload(String Payload, char operation)
 {
@@ -463,9 +463,9 @@ void NVS_Erase()
     esp_err_t retorno = nvs_flash_erase();
     if ((retorno =! ESP_OK))
     {
-      uart_write_bytes(UART_NUM_0, (const char *) "Não Apagou: ", strlen("Não Apagou: "));
-      uart_write_bytes(UART_NUM_0, (const char *) esp_err_to_name(retorno), strlen(esp_err_to_name(retorno)));
-      uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+      uart_write_bytes(UART0, (const char *) "Não Apagou: ", strlen("Não Apagou: "));
+      uart_write_bytes(UART0, (const char *) esp_err_to_name(retorno), strlen(esp_err_to_name(retorno)));
+      uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
     }
 }
 
@@ -479,7 +479,7 @@ int NVS_Write_String(const char* name, const char* key, const char* stringVal)
     retVal = nvs_open(name, NVS_READWRITE, &particao_handle);
     if(retVal != ESP_OK)
     {
-        uart_write_bytes(UART_NUM_0, (const char *) "Não foi possivel acessar a partição \n", strlen("Não foi possivel acessar a partição \n"));
+        uart_write_bytes(UART0, (const char *) "Não foi possivel acessar a partição \n", strlen("Não foi possivel acessar a partição \n"));
         aux = 0;
     }
     else
@@ -489,14 +489,14 @@ int NVS_Write_String(const char* name, const char* key, const char* stringVal)
 
         if(retVal != ESP_OK)
         {
-            uart_write_bytes(UART_NUM_0, (const char *) "Não foi possivel  gravar o dado enviado\n", strlen("Não foi possivel  gravar o dado enviado\n"));
+            uart_write_bytes(UART0, (const char *) "Não foi possivel  gravar o dado enviado\n", strlen("Não foi possivel  gravar o dado enviado\n"));
             aux = 0;
         }
  
         retVal = nvs_commit(particao_handle);
         if(retVal != ESP_OK)
         {
-            uart_write_bytes(UART_NUM_0, (const char *) "Não foi possivel  gravar o dado enviado na partição\n", strlen("Não foi possivel  gravar o dado enviado na partição\n"));
+            uart_write_bytes(UART0, (const char *) "Não foi possivel  gravar o dado enviado na partição\n", strlen("Não foi possivel  gravar o dado enviado na partição\n"));
             aux = 0;
         }
         else
@@ -522,7 +522,7 @@ String NVS_Read_String(const char* name, const char* key)
 
     if (res_nvs == ESP_ERR_NVS_NOT_FOUND)
     {
-      uart_write_bytes(UART_NUM_0, (const char *) "NVS, Namespace: armazenamento, não encontrado", strlen("NVS, Namespace: armazenamento, não encontrado"));
+      uart_write_bytes(UART0, (const char *) "NVS, Namespace: armazenamento, não encontrado", strlen("NVS, Namespace: armazenamento, não encontrado"));
     }
     else
     {
@@ -537,14 +537,14 @@ String NVS_Read_String(const char* name, const char* key)
         break;
 
       case ESP_ERR_NOT_FOUND:
-        uart_write_bytes(UART_NUM_0, (const char *) "NVS: Valor não encontrado", strlen("NVS: Valor não encontrado"));
+        uart_write_bytes(UART0, (const char *) "NVS: Valor não encontrado", strlen("NVS: Valor não encontrado"));
 
         break;
 
       default:
-        uart_write_bytes(UART_NUM_0, (const char *) "NVS: Erro ao acessar o NVS: ", strlen("NVS: Erro ao acessar o NVS: "));
-        uart_write_bytes(UART_NUM_0, (const char *) esp_err_to_name(res), strlen(esp_err_to_name(res)));
-        uart_write_bytes(UART_NUM_0, (const char *) "\n", strlen("\n"));
+        uart_write_bytes(UART0, (const char *) "NVS: Erro ao acessar o NVS: ", strlen("NVS: Erro ao acessar o NVS: "));
+        uart_write_bytes(UART0, (const char *) esp_err_to_name(res), strlen(esp_err_to_name(res)));
+        uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
 
 
         break;
@@ -559,16 +559,6 @@ String NVS_Read_String(const char* name, const char* key)
 //ac:23:3f:aa:82:29
 void loop() 
 {
-  //int64_t t1 = esp_timer_get_time();
-  // 1s <-> 1000000 us
-  if(esp_timer_get_time() < 1000000)
-  {
-    
-    //uart_write_bytes(UART_NUM_0, (const char *) "sim\r\n", strlen("sim\r\n"));
-
-  }
-
-  //buscar();
-
+  buscar();
 }
 
