@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <String.h>
+#include <sstream>
+#include <iostream>
 #include <stdlib.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -31,7 +33,7 @@ void registerBeacon();
 
 #define SEMAPHORE_WAIT 2000
 #define QUEUE_WAIT 3000
-#define QUEUE_LENGHT 12
+#define QUEUE_LENGHT 20
 #define SERIAL_BAUDRATE 115200
 #define TIME_SEARCH_BLE 1
 #define UART0 UART_NUM_0
@@ -47,6 +49,7 @@ xSemaphoreHandle state; // Semaphore para as Tasks
 
 char estado;
 char flag = 'I';
+int lastTime;
 
 struct acc_frame 
 {
@@ -63,6 +66,7 @@ struct acc_frame
   float ED3_Angle_x;
   float ED3_Angle_y;
   float ED3_Angle_z;
+  int gapTime;
 
 }frame = {"BACC",0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -104,6 +108,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks
         frame.ED2_Angle_x = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'x');
         frame.ED2_Angle_y = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'y');
         frame.ED2_Angle_z = axisToDegress(frame.ED2_Axis_x,frame.ED2_Axis_y,frame.ED2_Axis_z,'z');
+        frame.gapTime = (esp_timer_get_time())/1000000;
         mountPackage();
         processingData();
       }
@@ -174,21 +179,21 @@ void Task_stateGPIO(void * params)
     {
 
       case 'A':
-        gpio_set_level(PIN_ED2, 0);
-        gpio_set_level(LED_BLUE,1);
-        uart_write_bytes(UART0, (const char *) "Bag Armado \n", strlen("Bag Armado \n"));
+        gpio_set_level(PIN_ED2, 1);
+        gpio_set_level(LED_BLUE,0);
+        //uart_write_bytes(UART0, (const char *) "pos1 \n", strlen("pos1 \n"));
         break;
 
       case 'B':
         gpio_set_level(PIN_ED3, 1);
         gpio_set_level(LED_BLUE,0);
-        uart_write_bytes(UART0, (const char *) "Basculando \n", strlen("Basculando \n"));
+        //uart_write_bytes(UART0, (const char *) "Basculando \n", strlen("Basculando \n"));
       break;
 
       case 'D':
-        gpio_set_level(PIN_ED2,1);
-        gpio_set_level(LED_BLUE,0);
-        uart_write_bytes(UART0, (const char *) "Bag Desarmado \n", strlen("Bag Desarmado \n"));
+        gpio_set_level(PIN_ED2,0);
+        gpio_set_level(LED_BLUE,1);
+       // uart_write_bytes(UART0, (const char *) "pos2 \n", strlen("pos2 \n"));
         break;
 
       case 'N':
@@ -250,6 +255,7 @@ void Task_registerBeacon(void * params)
         const char* addrMacED3 = str2.c_str();
         NVS_Write_String("memoria", "ED2", addrMacED2);
         NVS_Write_String("memoria", "ED3", addrMacED3);
+
         flag = 'I' ;
       }
 
@@ -257,50 +263,72 @@ void Task_registerBeacon(void * params)
     }
 }
 
-
 void mountPackage()
 {
-    String package = "BACC";
-    package = (package + "," + frame.ED2_Axis_x + "," + frame.ED2_Axis_y + "," + frame.ED2_Axis_z + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z + "," + frame.ED3_Axis_x + "," + frame.ED3_Axis_y + "," + frame.ED3_Axis_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z);
-      // uart_write_bytes(UART0, (const char *) "Package: ", strlen("Package: "));
-      // uart_write_bytes(UART0, (const char *) package.c_str(), strlen(package.c_str()));
-      // uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
+  String package = "BACC";
 
-    long resposta = xQueueSend(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS);
-    
-    if(resposta == true)
-    {
-     //uart_write_bytes(UART0, (const char *) "adicionado a fila", strlen("adicionado a fila"));
-    }
-    else
-    {
-      uart_write_bytes(UART0, (const char *) "Não adicionado a fila:  ", strlen("Não adicionado a fila:"));
-      //Serial.printf("Não adicionado a fila: %s \r\n",package.c_str());
-    }
-    
+  package = (package + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z  + "," + frame.gapTime);
+  uart_write_bytes(UART0, (const char *) "Package: ", strlen("Package: "));
+  uart_write_bytes(UART0, (const char *) package.c_str(), strlen(package.c_str()));
+  uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
+
+  long resposta = xQueueSend(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS);
+  
+  if(resposta == true)
+  {
+    //uart_write_bytes(UART0, (const char *) "adicionado a fila", strlen("adicionado a fila"));
+  }
+  else
+  {
+    uart_write_bytes(UART0, (const char *) "Não adicionado a fila:  ", strlen("Não adicionado a fila:"));
+    //Serial.printf("Não adicionado a fila: %s \r\n",package.c_str());
+  } 
 }
+
+
+//X
+//.........70-----------------------90................
+//..15--60............................................
+
+//Y
+//---3.......................
+//.....40-----------70.......
+
 
 void processingData() 
 {
   if(xQueueReceive(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS))
   {
 
+
+// X      Y      Z
+// 85.52, 0.00, -85.52,
+// 1.15, 83.50, -83.60,
+
+    //  1s <--> 1000000 us
     if ( (frame.ED2_Angle_x >= 15 && frame.ED2_Angle_x <= 60) && (frame.ED2_Angle_y >= 40 && frame.ED2_Angle_y <= 70) )
+    {
+      //Serial.println("Bag desarmado");
+      if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
+      {
+        estado = 'D'; 
+        lastTime = esp_timer_get_time();
+        //uart_write_bytes(UART0, (const char *) "Posição A\n", strlen("posição A\n"));
+        //uart_write_bytes(UART0, (const char*) frame.gapTime, 2147483647);
+
+        xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
+      }
+    }
+    
+    else if ( (frame.ED2_Angle_x >= 70 && frame.ED2_Angle_x <= 90) && (frame.ED2_Angle_y < 3 ) )
     {
       //Serial.println("Bag armado");
       if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
       {
         estado = 'A';
-        xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
-      }
-    }
+        lastTime = frame.gapTime;
+        //uart_write_bytes(UART0, (const char *) "posição B\n", strlen("Posição B\n"));
 
-    else if ( (frame.ED2_Angle_x >= 70 && frame.ED2_Angle_x <= 90) && (frame.ED2_Angle_y < 3 ) )
-    {
-      //Serial.println("Bag desarmado");
-      if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
-      {
-        estado = 'D';
         xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
       }
     }
