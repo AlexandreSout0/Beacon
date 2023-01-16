@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 #include <String.h>
 #include <sstream>
@@ -179,9 +180,9 @@ void Task_stateGPIO(void * params)
     {
 
       case 'A':
-        gpio_set_level(PIN_ED2, 1);
+        gpio_set_level(PIN_ED2, 0);
         gpio_set_level(LED_BLUE,0);
-        //uart_write_bytes(UART0, (const char *) "pos1 \n", strlen("pos1 \n"));
+        uart_write_bytes(UART0, (const char *) "pos1 \n", strlen("pos1 \n"));
         break;
 
       case 'B':
@@ -191,9 +192,9 @@ void Task_stateGPIO(void * params)
       break;
 
       case 'D':
-        gpio_set_level(PIN_ED2,0);
+        gpio_set_level(PIN_ED2,1);
         gpio_set_level(LED_BLUE,1);
-       // uart_write_bytes(UART0, (const char *) "pos2 \n", strlen("pos2 \n"));
+        uart_write_bytes(UART0, (const char *) "pos2 \n", strlen("pos2 \n"));
         break;
 
       case 'N':
@@ -268,9 +269,9 @@ void mountPackage()
   String package = "BACC";
 
   package = (package + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z  + "," + frame.gapTime);
-  uart_write_bytes(UART0, (const char *) "Package: ", strlen("Package: "));
-  uart_write_bytes(UART0, (const char *) package.c_str(), strlen(package.c_str()));
-  uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
+  //uart_write_bytes(UART0, (const char *) "Package: ", strlen("Package: "));
+  //uart_write_bytes(UART0, (const char *) package.c_str(), strlen(package.c_str()));
+  //uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
 
   long resposta = xQueueSend(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS);
   
@@ -300,48 +301,33 @@ void processingData()
   if(xQueueReceive(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS))
   {
 
-
-// X      Y      Z
-// 85.52, 0.00, -85.52,
-// 1.15, 83.50, -83.60,
-
-    //  1s <--> 1000000 us
     if ( (frame.ED2_Angle_x >= 15 && frame.ED2_Angle_x <= 60) && (frame.ED2_Angle_y >= 40 && frame.ED2_Angle_y <= 70) )
     {
-      //Serial.println("Bag desarmado");
-      if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
-      {
-        estado = 'D'; 
-        lastTime = esp_timer_get_time();
-        //uart_write_bytes(UART0, (const char *) "Posição A\n", strlen("posição A\n"));
-        //uart_write_bytes(UART0, (const char*) frame.gapTime, 2147483647);
-
-        xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
-      }
-    }
-    
-    else if ( (frame.ED2_Angle_x >= 70 && frame.ED2_Angle_x <= 90) && (frame.ED2_Angle_y < 3 ) )
-    {
       //Serial.println("Bag armado");
-      if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
+      Serial.println(estado);
+      if (estado == 'D')
       {
-        estado = 'A';
-        lastTime = frame.gapTime;
-        //uart_write_bytes(UART0, (const char *) "posição B\n", strlen("Posição B\n"));
-
-        xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
-      }
+        Serial.println(estado);
+        if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS) ) // Pega o Semaphore se ele estiver disponivel
+        {
+          estado = 'A';
+          xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
+          vTaskDelay(5000/portTICK_PERIOD_MS);
+        }
+        Serial.println(estado);
+        estado = 'N';
+      } 
     }
-    
-    else if ((frame.ED3_Angle_y >= 70))
+    else if ( (frame.ED2_Angle_x >= 60 && frame.ED2_Angle_x <= 90) && (frame.ED2_Angle_y < 30 ) )
     {
+      //Serial.println("Bag desarmado");
+      Serial.println(estado);
       if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
       {
-        estado = 'B';
+        estado = 'D';
         xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
       }
     }
-
     else
     {
       if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
@@ -589,4 +575,3 @@ void loop()
 {
   buscar();
 }
-
