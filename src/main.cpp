@@ -287,15 +287,6 @@ void mountPackage()
 }
 
 
-//X
-//.........70-----------------------90................
-//..15--60............................................
-
-//Y
-//---3.......................
-//.....40-----------70.......
-
-
 void processingData() 
 {
   if(xQueueReceive(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS))
