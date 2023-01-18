@@ -12,7 +12,6 @@
 #include <nvs_flash.h>
 #include "esp_timer.h"
 #include "driver/uart.h"
-#include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
@@ -32,7 +31,7 @@ void registerBeacon();
 
 //ac:23:3f:ad:dd:d6@ac:23:3f:ad:dd:d7
 
-#define SEMAPHORE_WAIT 2000
+#define SEMAPHORE_WAIT 100
 #define QUEUE_WAIT 3000
 #define QUEUE_LENGHT 20
 #define SERIAL_BAUDRATE 115200
@@ -50,7 +49,7 @@ xSemaphoreHandle state; // Semaphore para as Tasks
 
 char estado;
 char flag = 'I';
-int lastTime;
+char stepBag = 0;
 
 struct acc_frame 
 {
@@ -180,21 +179,20 @@ void Task_stateGPIO(void * params)
     {
 
       case 'A':
-        gpio_set_level(PIN_ED2, 0);
+        gpio_set_level(PIN_ED2,1);
         gpio_set_level(LED_BLUE,0);
-        uart_write_bytes(UART0, (const char *) "pos1 \n", strlen("pos1 \n"));
         break;
 
       case 'B':
-        gpio_set_level(PIN_ED3, 1);
-        gpio_set_level(LED_BLUE,0);
-        //uart_write_bytes(UART0, (const char *) "Basculando \n", strlen("Basculando \n"));
+        gpio_set_level(PIN_ED3,1);
+        gpio_set_level(LED_BLUE,1);
+        uart_write_bytes(UART0,"Basculando \n", strlen("Basculando \n"));
       break;
 
       case 'D':
-        gpio_set_level(PIN_ED2,1);
+        gpio_set_level(PIN_ED2,0);
         gpio_set_level(LED_BLUE,1);
-        uart_write_bytes(UART0, (const char *) "pos2 \n", strlen("pos2 \n"));
+        uart_write_bytes(UART0,(const char*) "+BAG\n", strlen("+BAG\n"));
         break;
 
       case 'N':
@@ -247,11 +245,10 @@ void Task_registerBeacon(void * params)
         flag = 'N';
 
       }
-      
       if (flag == 'G')
       {
         String str1 = addrMac.substring(0,17);
-        String str2 = addrMac.substring(18,36);
+        String str2 = addrMac.substring(18,35);
         const char* addrMacED2 = str1.c_str();
         const char* addrMacED3 = str2.c_str();
         NVS_Write_String("memoria", "ED2", addrMacED2);
@@ -292,30 +289,37 @@ void processingData()
   if(xQueueReceive(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS))
   {
 
-    if ( (frame.ED2_Angle_x >= 15 && frame.ED2_Angle_x <= 60) && (frame.ED2_Angle_y >= 40 && frame.ED2_Angle_y <= 70) )
+    if ( (frame.ED2_Angle_x >= 15 && frame.ED2_Angle_x <= 60) && (frame.ED2_Angle_y >= 40 && frame.ED2_Angle_y <= 70)) //armado
     {
-      //Serial.println("Bag armado");
-      Serial.println(estado);
-      if (estado == 'D')
-      {
-        Serial.println(estado);
         if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS) ) // Pega o Semaphore se ele estiver disponivel
         {
           estado = 'A';
-          xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
-          vTaskDelay(5000/portTICK_PERIOD_MS);
+          xSemaphoreGive(state);
+          uart_write_bytes(UART0,"Armado\n", strlen("Armado\n"));
+          stepBag = 1;
         }
-        Serial.println(estado);
-        estado = 'N';
-      } 
     }
-    else if ( (frame.ED2_Angle_x >= 60 && frame.ED2_Angle_x <= 90) && (frame.ED2_Angle_y < 30 ) )
+
+    if ( (frame.ED2_Angle_x >= 60 && frame.ED2_Angle_x <= 90) && (frame.ED2_Angle_y < 30 ) && (stepBag == 1)) //desarmado
     {
-      //Serial.println("Bag desarmado");
-      Serial.println(estado);
       if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
       {
         estado = 'D';
+        stepBag = 0;
+        vTaskDelay( 1500 / portTICK_PERIOD_MS);
+        xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
+          // char num_str[1000];
+          // sprintf(num_str, "%d\n", lastTimeB); // Converte o número para uma string
+          // uart_write_bytes(UART0, num_str, strlen(num_str));
+      }
+    }
+
+    
+    if ( (frame.ED3_Angle_y >= 50))
+    {
+      if (xSemaphoreTake(state, SEMAPHORE_WAIT / portTICK_PERIOD_MS)) // Pega o Semaphore se ele estiver disponivel
+      {
+        estado = 'B';
         xSemaphoreGive(state); // Devolve o Semaphore após terminar a função
       }
     }
