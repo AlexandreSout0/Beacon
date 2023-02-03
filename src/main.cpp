@@ -15,18 +15,18 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
-String NVS_Read_String(const char* name, const char* key);
-int NVS_Write_String(const char* name, const char* key, const char* stringVal);
-float decodePayload(String Payload, char operation);
-float axisToDegress(float Axis_x, float Axis_y,float Axis_z, char operatation);
-void uart_init(int baudRate, int tx_io_num, int rx_io_num, uart_port_t uart_num);
+String NVS_Read_String(const char* name, const char* key); // Leitura da Memoria Interna
+int NVS_Write_String(const char* name, const char* key, const char* stringVal); // Escrita da memoria interna
+float decodePayload(String Payload, char operation); //Decodificação do pacote recebido pelo ibeacon
+float axisToDegress(float Axis_x, float Axis_y,float Axis_z, char operatation); // calculo dos angulos recebidos com os dados do acelerometro
+void uart_init(int baudRate, int tx_io_num, int rx_io_num, uart_port_t uart_num); // inicializa a UART
 char* uartData();
-void mountPackage();
-void processingData();
-void NVS_Erase();
-void Task_stateGPIO(void * params);
-void Task_registerBeacon(void * params);
-void registerBeacon();
+void mountPackage(); // Monta pacote com os dados dos angulos dos 2 ibeacons
+void processingData(); // Processa a regra de negocio, para definir o que fazer com os estados dos ibeacons
+void NVS_Erase(); // limpa memoria interna
+void Task_stateGPIO(void * params); // ativa ou desativa as GPIO para simular os DIEs
+void Task_registerBeacon(void * params); // Regitra o MAC dos beacons que seram lidos 
+void registerBeacon();  // Regitra o MAC dos beacons que seram lidos 
 
 
 //ac:23:3f:ad:dd:d6@ac:23:3f:ad:dd:d7
@@ -34,7 +34,7 @@ void registerBeacon();
 #define SEMAPHORE_WAIT 100
 #define QUEUE_WAIT 3000
 #define QUEUE_LENGHT 20
-#define SERIAL_BAUDRATE 115200
+#define SERIAL_BAUDRATE 9600
 #define TIME_SEARCH_BLE 1
 #define UART0 UART_NUM_0
 #define TIME_REGISTER 3000000  // esp_timer_get_time() 1s <-> 1000000 us
@@ -45,7 +45,7 @@ void registerBeacon();
 
 
 xQueueHandle QueuePackages;
-xSemaphoreHandle state; // Semaphore para as Tasks
+xSemaphoreHandle state; // Semaphore para as Tzasks
 
 char estado;
 char flag = 'I';
@@ -266,9 +266,9 @@ void mountPackage()
   String package = "BACC";
 
   package = (package + "," + frame.ED2_Angle_x + "," + frame.ED2_Angle_y + "," + frame.ED2_Angle_z + "," + frame.ED3_Angle_x + "," + frame.ED3_Angle_y + "," + frame.ED3_Angle_z  + "," + frame.gapTime);
-  //uart_write_bytes(UART0, (const char *) "Package: ", strlen("Package: "));
-  //uart_write_bytes(UART0, (const char *) package.c_str(), strlen(package.c_str()));
-  //uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
+    uart_write_bytes(UART0, (const char *) "Package: ", strlen("Package: "));
+    uart_write_bytes(UART0, (const char *) package.c_str(), strlen(package.c_str()));
+    uart_write_bytes(UART0, (const char *) "\n", strlen("\n"));
 
   long resposta = xQueueSend(QueuePackages, &frame, QUEUE_WAIT / portTICK_PERIOD_MS);
   
